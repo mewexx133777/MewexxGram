@@ -46,6 +46,11 @@ jobs:
           submodules: recursive
           path: TBuild/MewexxGram
 
+      - name: Git configuration
+        run: |
+          git config --global user.email "builder@mewexxgram.local"
+          git config --global user.name "MewexxGram Builder"
+
       - name: Setup Visual Studio MSVC environment
         uses: ilammy/msvc-dev-cmd@v1
         with:
@@ -53,12 +58,24 @@ jobs:
           sdk: "10.0.26100.0"
           toolset: "14.44"
 
+      - name: Configure NuGet sources
+        run: |
+          nuget sources Disable -Name "Microsoft Visual Studio Offline Packages" || exit 0
+          nuget sources Add -Source https://api.nuget.org/v3/index.json || exit 0
+
+      - name: Calculate Cache Key
+        shell: bash
+        run: |
+          echo "$(sha256sum ${{ env.TBUILD }}/MewexxGram/Telegram/build/prepare/prepare.py | awk '{ print $1 }')" > CACHE_KEY.txt
+          echo "10.0.26100.0" >> CACHE_KEY.txt
+          echo "CACHE_KEY=$(sha256sum CACHE_KEY.txt | awk '{ print $1 }')" >> $GITHUB_ENV
+
       - name: Cache ThirdParty
         id: cache-third-party
         uses: actions/cache@v4
         with:
           path: ${{ env.TBUILD }}\ThirdParty
-          key: ${{ runner.OS }}-x64-third-party-${{ hashFiles('TBuild/MewexxGram/Telegram/build/prepare/prepare.py') }}
+          key: ${{ runner.OS }}-x64-third-party-${{ env.CACHE_KEY }}
           restore-keys: |
             ${{ runner.OS }}-x64-third-party-
 
@@ -72,7 +89,7 @@ jobs:
             !${{ env.LibrariesPath }}\[qQ]t[_-]*
             ${{ env.LibrariesPath }}\cache_keys\*
             !${{ env.LibrariesPath }}\cache_keys\[qQ]t[_-]*
-          key: ${{ runner.OS }}-x64-libs-v2-${{ hashFiles('TBuild/MewexxGram/Telegram/build/prepare/prepare.py') }}
+          key: ${{ runner.OS }}-x64-libs-v2-${{ env.CACHE_KEY }}
           restore-keys: |
             ${{ runner.OS }}-x64-libs-v2-
 
@@ -83,7 +100,7 @@ jobs:
           path: |
             ${{ env.LibrariesPath }}\[qQ]t[_-]*
             ${{ env.LibrariesPath }}\cache_keys\[qQ]t[_-]*
-          key: ${{ runner.OS }}-x64-qt6-${{ hashFiles('TBuild/MewexxGram/Telegram/build/prepare/prepare.py') }}
+          key: ${{ runner.OS }}-x64-qt6-${{ env.CACHE_KEY }}
           restore-keys: |
             ${{ runner.OS }}-x64-qt6-
 
@@ -116,7 +133,11 @@ jobs:
         run: |
           $buildDir = "${{ env.TBUILD }}\\MewexxGram\\out\\${{ env.BUILD_TYPE }}"
           New-Item -ItemType Directory -Path "dist" -Force
-          Copy-Item "$buildDir\\MewexxGram.exe" -Destination "dist\\MewexxGram.exe"
+          if (Test-Path "$buildDir\\MewexxGram.exe") {
+            Copy-Item "$buildDir\\MewexxGram.exe" -Destination "dist\\MewexxGram.exe"
+          } elseif (Test-Path "$buildDir\\Telegram.exe") {
+            Copy-Item "$buildDir\\Telegram.exe" -Destination "dist\\MewexxGram.exe"
+          }
           if (Test-Path "$buildDir\\Updater.exe") {
             Copy-Item "$buildDir\\Updater.exe" -Destination "dist\\Updater.exe"
           }
