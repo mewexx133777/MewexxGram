@@ -902,8 +902,6 @@ object_ptr<Ui::RpWidget> Controller::createStickersEdit() {
 		container,
 		tr::lng_group_stickers_description());
 
-	Ui::AddSkip(container, bottomSkip);
-
 	return result;
 }
 
@@ -1080,7 +1078,7 @@ void Controller::fillPrivacyTypeButton() {
 		.usernamesOrder = (_peer->isChannel()
 			? _peer->asChannel()->usernames()
 			: std::vector<QString>()),
-		.noForwards = !_peer->allowsForwarding(),
+		.noForwards = _peer->isAyuNoForwards(),
 		.joinToWrite = (_peer->isMegagroup()
 			&& _peer->asChannel()->joinToWrite()),
 		.requestToJoin = (_peer->isChannel()
@@ -1785,9 +1783,6 @@ void Controller::fillManageSection() {
 				: tr::lng_profile_delete_channel)(),
 			[=]{ deleteWithConfirmation(); }
 		);
-	}
-
-	if (canEditStickers || canDeleteChannel) {
 		::AddSkip(_controls.buttonsLayout);
 	}
 }
@@ -2918,7 +2913,7 @@ void Controller::saveSignatures() {
 
 void Controller::saveForwards() {
 	if (!_savingData.noForwards
-		|| *_savingData.noForwards != _peer->allowsForwarding()) {
+		|| *_savingData.noForwards == _peer->isAyuNoForwards()) {
 		return continueSave();
 	}
 	using Flag = MTPmessages_ToggleNoForwards::Flag;

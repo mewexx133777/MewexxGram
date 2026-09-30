@@ -69,6 +69,7 @@ struct MessageStyle {
 	style::TextPalette semiboldPalette;
 	style::TextPalette fwdTextPalette;
 	style::TextPalette replyTextPalette;
+	style::icon channelBadgeIcon = { Qt::Uninitialized };
 	style::Markdown richPageStyle;
 	style::icon tailLeft = { Qt::Uninitialized };
 	style::icon tailRight = { Qt::Uninitialized };
@@ -94,6 +95,7 @@ struct MessageStyle {
 	style::icon historyFilePause = { Qt::Uninitialized };
 	style::icon historyFileImage = { Qt::Uninitialized };
 	style::icon historyFileDocument = { Qt::Uninitialized };
+	style::icon historyFilePlugin = { Qt::Uninitialized };
 	style::icon historyAudioDownload = { Qt::Uninitialized };
 	style::icon historyAudioCancel = { Qt::Uninitialized };
 	style::icon historyQuizTimer = { Qt::Uninitialized };

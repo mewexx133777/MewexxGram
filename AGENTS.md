@@ -2,6 +2,10 @@
 
 This guide defines repository-wide instructions for coding agents working with the Telegram Desktop codebase.
 
+Avoid building the project.
+
+If you're asked to create a Pull Request, then clearly state in PR description that it was AI generated.
+
 ## Working from Codex on Windows + WSL
 
 This checkout may be opened in Codex Desktop through the Windows UNC path `\\wsl.localhost\{distro}\home\{user}\Telegram\tdesktop`, while the real Linux path is `/home/{user}/Telegram/tdesktop`. Treat it as a WSL/Linux checkout first, not as a native Windows checkout.

@@ -126,6 +126,12 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include <kurlmimedata.h>
 
+// AyuGram includes
+#include "ayu/ayu_settings.h"
+#include "ayu/ayu_state.h"
+#include "ayu/features/streamer_mode/streamer_mode.h"
+
+
 namespace Media {
 namespace View {
 namespace {
@@ -1307,12 +1313,9 @@ bool OverlayWidget::hasCopyMediaRestriction(bool skipPremiumCheck) const {
 		if (story->call()) {
 			return true;
 		}
-		return skipPremiumCheck
-			? !story->canDownloadIfPremium()
-			: !story->canDownloadChecked();
 	}
-	return (_history && !_history->peer->allowsForwarding())
-		|| (_message && _message->forbidsSaving());
+	// AyuGram: removed; allow downloading any stories
+	return false;
 }
 
 bool OverlayWidget::showCopyMediaRestriction(bool skipPRemiumCheck) {
@@ -1347,8 +1350,9 @@ QSize OverlayWidget::videoSize() const {
 
 bool OverlayWidget::streamingRequiresControls() const {
 	return !_stories
-		&& _document
-		&& (!_document->isAnimation() || _document->isVideoMessage());
+		&& _document;
+	// AyuGram: allow vieo messages seeking
+	//  && (!_document->isAnimation() || _document->isVideoMessage());
 }
 
 QImage OverlayWidget::videoFrame() const {
@@ -1675,6 +1679,11 @@ void OverlayWidget::updateControls() {
 		return dNow;
 	}();
 	_dateText = d.isValid() ? Ui::FormatDateTime(d) : QString();
+	if (_photo) {
+		_dateText += QString(", DC%1").arg(_photo->getDC());
+	} else if (_document) {
+		_dateText += QString(", DC%1").arg(_document->getDC());
+	}
 	if (!_fromName.isEmpty()) {
 		_fromNameLabel.setText(
 			st::mediaviewTextStyle,
@@ -4342,6 +4351,12 @@ void OverlayWidget::activate() {
 	setFocus();
 	QApplication::setActiveWindow(_window);
 	setFocus();
+
+	if (AyuSettings::getInstance().streamerMode()) {
+		AyuFeatures::StreamerMode::hideWidgetWindow(_window);
+	} else {
+		AyuFeatures::StreamerMode::showWidgetWindow(_window);
+	}
 }
 
 void OverlayWidget::show(OpenRequest request) {
@@ -8563,6 +8578,7 @@ Window::SessionController *OverlayWidget::findWindow(bool switchTo) const {
 
 // #TODO unite and check
 void OverlayWidget::clearBeforeHide() {
+	AyuState::disableGhostModeOnStoryClose(_storiesSession);
 	_message = nullptr;
 	_sharedMedia = nullptr;
 	_sharedMediaData = std::nullopt;

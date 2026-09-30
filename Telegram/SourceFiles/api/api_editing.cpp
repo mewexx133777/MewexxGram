@@ -32,6 +32,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "mtproto/mtproto_response.h"
 #include "boxes/abstract_box.h" // Ui::show().
 
+// AyuGram includes
+#include "ayu/utils/telegram_helpers.h"
+
+
 namespace Api {
 namespace {
 
@@ -167,9 +171,10 @@ mtpRequestId SuggestMedia(
 	const auto api = &session->api();
 
 	const auto text = textWithEntities.text;
+	const auto textNormalized = reverseLocalPremiumEmoji(textWithEntities, item->history());
 	const auto sentEntities = EntitiesToMTP(
 		session,
-		textWithEntities.entities,
+		textNormalized.entities,
 		ConvertOption::SkipLocal);
 
 	const auto updateRecentStickers = inputMedia
@@ -316,9 +321,10 @@ mtpRequestId EditMessage(
 	const auto api = &session->api();
 
 	const auto text = textWithEntities.text;
+	const auto textNormalized = reverseLocalPremiumEmoji(textWithEntities, item->history());
 	const auto sentEntities = EntitiesToMTP(
 		session,
-		textWithEntities.entities,
+		textNormalized.entities,
 		ConvertOption::SkipLocal);
 	const auto media = item->media();
 

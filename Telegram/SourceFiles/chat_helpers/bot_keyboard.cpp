@@ -435,7 +435,7 @@ QString BotKeyboard::tooltipText() const {
 }
 
 void BotKeyboard::updateSelected() {
-	Ui::Tooltip::Show(1000, this);
+	Ui::Tooltip::Show(350, this);
 
 	if (!_impl) return;
 
