@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <component type="desktop">
-    <id>com.ayugram.desktop</id>
+    <id>com.mewexxgram.desktop</id>
     <metadata_license>CC0-1.0</metadata_license>
     <project_license>GPL-3.0</project_license>
-    <name>AyuGram Desktop</name>
-    <summary>Desktop version of AyuGram - ToS breaking Telegram client</summary>
+    <name>MewexxGram Desktop</name>
+    <summary>Desktop version of MewexxGram - ToS breaking Telegram client</summary>
     <description>
         <p>Telegram Desktop with Ghost Mode, Anti-Recall and cool design.</p>
     </description>
@@ -75,7 +75,7 @@
         <content_attribute id="money-gambling">none</content_attribute>
         <content_attribute id="money-advertising">moderate</content_attribute>
     </content_rating>
-    <launchable type="desktop-id">com.ayugram.desktop.desktop</launchable>
+    <launchable type="desktop-id">com.mewexxgram.desktop.desktop</launchable>
     <provides>
         <binary>AyuGram</binary>
     </provides>
