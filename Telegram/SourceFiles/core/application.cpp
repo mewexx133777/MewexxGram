@@ -108,6 +108,12 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include <ksandbox.h>
 
+// AyuGram includes
+#include "ayu/ayu_infra.h"
+#include "ayu/ayu_settings.h"
+#include "ayu/features/streamer_mode/streamer_mode.h"
+
+
 namespace Core {
 namespace {
 
@@ -337,6 +343,7 @@ void Application::run() {
 	_translator = std::make_unique<Lang::Translator>();
 	QCoreApplication::instance()->installTranslator(_translator.get());
 
+	AyuInfra::init();
 	style::StartManager(cScale());
 	Ui::Accessible::Init();
 	Ui::InitTextOptions();
@@ -597,6 +604,10 @@ void Application::processCreatedWindow(
 	}
 	window->openInMediaViewRequests(
 	) | rpl::start_to_stream(_openInMediaViewRequests, window->lifetime());
+
+	if (AyuSettings::getInstance().streamerMode()) {
+		AyuFeatures::StreamerMode::hideWidgetWindow(window->widget());
+	}
 }
 
 void Application::startMediaView() {
@@ -1266,7 +1277,7 @@ bool Application::openInternalUrl(const QString &url, QVariant context) {
 }
 
 QString Application::changelogLink() const {
-	return u"https://telegramdesktop.github.io/tdesktop/changelog/"_q;
+	return u"https://github.com/AyuGram/AyuGramDesktop/releases"_q;
 }
 
 bool Application::openCustomUrl(
@@ -2043,7 +2054,7 @@ void Application::RegisterUrlScheme() {
 		.arguments = arguments,
 		.protocol = u"tg"_q,
 		.protocolName = u"Telegram Link"_q,
-		.shortAppName = u"tdesktop"_q,
+		.shortAppName = u"AyuGram"_q,
 		.longAppName = QCoreApplication::applicationName(),
 		.displayAppName = AppName.utf16(),
 		.displayAppDescription = AppName.utf16(),

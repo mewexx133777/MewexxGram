@@ -133,6 +133,12 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include <limits>
 #include <QtCore/QMimeData>
 
+// AyuGram includes
+#include "ayu/ayu_settings.h"
+#include "ayu/features/message_shot/message_shot.h"
+#include "base/unixtime.h"
+
+
 namespace HistoryView {
 
 namespace {
@@ -533,6 +539,10 @@ ChatWidget::ChatWidget(
 	) | rpl::on_next([=] {
 		confirmDeleteSelected();
 	}, _topBar->lifetime());
+	_topBar->messageShotSelectionRequest(
+	) | rpl::on_next([=] {
+		AyuFeatures::MessageShot::Wrapper(_inner, [=] { clearSelected(); });
+	}, _topBar->lifetime());
 	_topBar->forwardSelectionRequest(
 	) | rpl::on_next([=] {
 		confirmForwardSelected();
@@ -751,6 +761,7 @@ ChatWidget::ChatWidget(
 		) | rpl::on_next([=] {
 			_inner->update();
 		}, lifetime());
+
 	}
 
 	session().api().sendActions(
@@ -2072,7 +2083,8 @@ bool ChatWidget::confirmSendingFiles(
 		_composeControls->getTextWithAppliedMarkdown(),
 		_peer,
 		Api::SendType::Normal,
-		sendMenuDetails());
+		sendMenuDetails(),
+		[=](const TextWithTags &text) { _composeControls->setText(text); });
 	box->setReplyTo(_composeControls->replyingToMessage());
 
 	box->setConfirmedCallback(crl::guard(this, [=](

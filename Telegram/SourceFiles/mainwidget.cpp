@@ -103,6 +103,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include <QtCore/QCoreApplication>
 #include <QtCore/QMimeData>
 
+// AyuGram includes
+#include "ayu/features/forward/ayu_forward.h"
+
+
 namespace {
 
 void ClearBotStartToken(PeerData *peer) {
@@ -604,7 +608,9 @@ bool MainWidget::setForwardDraft(
 			.forward = &items,
 			.ignoreSlowmodeCountdown = true,
 		});
-	if (error) {
+	// allow opening chat that
+	// already have some forward task
+	if (error && !AyuForward::isForwarding(history->peer->id)) {
 		Data::ShowSendErrorToast(_controller, history->peer, error);
 		return false;
 	}

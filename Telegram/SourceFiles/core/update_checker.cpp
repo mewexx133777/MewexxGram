@@ -760,9 +760,7 @@ bool UnpackUpdate(const QString &filepath) {
 	RSA *pbKey = [] {
 		const auto bio = MakeBIO(
 			const_cast<char*>(
-				AppBetaVersion
-					? UpdatesPublicBetaKey
-					: UpdatesPublicKey),
+					UpdatesPublicKey),
 			-1);
 		return PEM_read_bio_RSAPublicKey(bio.get(), 0, 0, 0);
 	}();
@@ -771,27 +769,9 @@ bool UnpackUpdate(const QString &filepath) {
 		return false;
 	}
 	if (RSA_verify(NID_sha1, (const uchar*)(compressed.constData() + hSigLen), hShaLen, (const uchar*)(compressed.constData()), hSigLen, pbKey) != 1) { // verify signature
-		RSA_free(pbKey);
-
-		// try other public key, if we update from beta to stable or vice versa
-		pbKey = [] {
-			const auto bio = MakeBIO(
-				const_cast<char*>(
-					AppBetaVersion
-						? UpdatesPublicKey
-						: UpdatesPublicBetaKey),
-				-1);
-			return PEM_read_bio_RSAPublicKey(bio.get(), 0, 0, 0);
-		}();
-		if (!pbKey) {
-			LOG(("Update Error: cant read public rsa key!"));
-			return false;
-		}
-		if (RSA_verify(NID_sha1, (const uchar*)(compressed.constData() + hSigLen), hShaLen, (const uchar*)(compressed.constData()), hSigLen, pbKey) != 1) { // verify signature
-			RSA_free(pbKey);
-			LOG(("Update Error: bad RSA signature of update file!"));
-			return false;
-		}
+        RSA_free(pbKey);
+        LOG(("Update Error: bad RSA signature of update file!"));
+        return false;
 	}
 	RSA_free(pbKey);
 
@@ -997,7 +977,8 @@ void HttpChecker::start() {
 		+ (updaterVersion > 1 ? QString::number(updaterVersion) : QString());
 	auto url = QUrl(path);
 	DEBUG_LOG(("Update Info: requesting update state"));
-	const auto request = QNetworkRequest(url);
+	auto request = QNetworkRequest(url);
+	request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
 	_manager = std::make_unique<QNetworkAccessManager>();
 	_reply = _manager->get(request);
 	_reply->connect(_reply, &QNetworkReply::finished, [=] {
@@ -1188,6 +1169,7 @@ void HttpLoaderActor::sendRequest() {
 	request.setAttribute(
 		QNetworkRequest::HttpPipeliningAllowedAttribute,
 		true);
+	request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
 	_reply.reset(_manager.get(request));
 	connect(
 		_reply.get(),
@@ -1987,21 +1969,9 @@ void Updater::start(bool forceWait) {
 		}
 #endif // !Q_OS_WIN && !Q_OS_MAC
 	} else if (sendRequest) {
-		if (BuildIsCanary) {
-			// Canary builds discover updates only through their own MTP
-			// channels, the v1 HTTP feed serves other channels.
-			startImplementation(&_httpImplementation, nullptr);
-		} else {
-			startImplementation(
-				&_httpImplementation,
-				std::make_unique<HttpChecker>(_testing));
-		}
 		startImplementation(
-			&_mtpImplementation,
-			std::make_unique<MtpChecker>(
-				LookupCanaryPrivateSession(_session),
-				_testing));
-
+			&_httpImplementation,
+			std::make_unique<HttpChecker>(_testing));
 		_checking.fire({});
 	} else {
 		_timer.callOnce((updateInSecs + 5) * crl::time(1000));
@@ -2398,7 +2368,7 @@ void UpdateApplication() {
 			} else if (KSandbox::isSnap()) {
 				return "https://snapcraft.io/telegram-desktop";
 			}
-			return "https://desktop.telegram.org";
+			return "https://t.me/AyuGramReleases";
 #endif // OS_WIN_STORE || OS_MAC_STORE
 		}();
 		UrlClickHandler::Open(url);

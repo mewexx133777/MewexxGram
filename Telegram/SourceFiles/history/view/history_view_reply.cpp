@@ -39,6 +39,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_dialogs.h"
 #include "styles/style_polls.h"
 
+// AyuGram includes
+#include "ayu/ayu_settings.h"
+
+
 namespace HistoryView {
 namespace {
 
@@ -292,6 +296,7 @@ void FillBackgroundEmoji(
 		bool quote,
 		const Ui::BackgroundEmojiCache &cache,
 		const QImage &firstGiftFrame) {
+	const auto was = p.opacity(); // for semi-transparent deleted messages
 	p.setClipRect(rect);
 
 	const auto &frames = cache.frames;
@@ -305,7 +310,7 @@ void FillBackgroundEmoji(
 		if (y >= rect.height()) {
 			return;
 		}
-		p.setOpacity(opacity);
+		p.setOpacity(was * opacity);
 		p.drawImage(
 			right - style::ConvertScale(x + (quote ? 12 : 0)),
 			rect.y() + y,
@@ -337,7 +342,7 @@ void FillBackgroundEmoji(
 	}
 
 	p.setClipping(false);
-	p.setOpacity(1.);
+	p.setOpacity(was);
 }
 
 Reply::Reply()
@@ -869,7 +874,8 @@ void Reply::paint(
 	}
 	Ui::Text::ValidateQuotePaintCache(*cache, quoteSt);
 	Ui::Text::FillQuotePaint(p, rect, *cache, quoteSt);
-	if (backgroundEmojiData) {
+	const auto &settings = AyuSettings::getInstance();
+	if (!settings.simpleQuotesAndReplies() && backgroundEmojiData) {
 		ValidateBackgroundEmoji(
 			backgroundEmojiId,
 			colorCollectible,
@@ -892,7 +898,7 @@ void Reply::paint(
 
 	if (_ripple.animation) {
 		_ripple.lastPaintedPoint = inBubble ? QPoint(x, y) : QPoint();
-		_ripple.animation->paint(p, x, y, w, &rippleColor);
+		_ripple.animation->paint(p, x, y, w, &cache->bg2);
 		if (_ripple.animation->empty()) {
 			_ripple.animation.reset();
 			_ripple.lastPaintedPoint = {};

@@ -59,6 +59,11 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include <algorithm>
 #include <memory>
 
+// AyuGram includes
+#include "ayu/ayu_settings.h"
+#include "styles/style_ayu_styles.h"
+
+
 namespace Ui::BotWebView {
 
 namespace {
@@ -1244,7 +1249,17 @@ Panel::Panel(Args &&args)
 		}, _widget->lifetime());
 	}
 	_widget->setWindowFlag(Qt::WindowStaysOnTopHint, false);
-	_widget->setInnerSize(st::botWebViewPanelSize, true);
+
+	const auto &settings = AyuSettings::getInstance();
+	auto size = QSize(st::botWebViewPanelSize);
+	if (settings.increaseWebviewHeight()) {
+		size.setHeight(st::botWebViewPanelHeightIncreased);
+	}
+	if (settings.increaseWebviewWidth()) {
+		size.setWidth(st::botWebViewPanelWidthIncreased);
+	}
+
+	_widget->setInnerSize(size, true);
 
 	const auto panel = _widget.get();
 	rpl::duplicate(

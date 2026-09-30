@@ -73,6 +73,14 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_dialogs.h"
 #include "styles/style_iv.h"
 
+// AyuGram includes
+#include "data/data_groups.h"
+#include "ayu/ayu_settings.h"
+#include "ayu/features/message_shot/message_shot.h"
+#include "ayu/utils/telegram_helpers.h"
+#include "styles/style_ayu_styles.h"
+
+
 namespace HistoryView {
 namespace {
 
@@ -749,6 +757,11 @@ QString DateTooltipText(not_null<Element*> view) {
 	if (const auto stars = item->out() ? item->starsPaid() : 0) {
 		dateText += '\n' + tr::lng_you_paid_stars(tr::now, lt_count, stars);
 	}
+	if (!item->isLocal()) {
+		dateText += '\n';
+		dateText += "ID: ";
+		dateText += QString::number(item->id.bare);
+	}
 	return dateText;
 }
 
@@ -771,12 +784,15 @@ void UnreadBar::paint(
 		int y,
 		int w,
 		ElementChatMode mode) const {
+	if (AyuFeatures::MessageShot::isTakingShot()) {
+		return;
+	}
 	const auto previousTranslation = p.transform().dx();
 	if (previousTranslation != 0) {
 		p.translate(-previousTranslation, 0);
 	}
 	const auto st = context.st;
-	const auto bottom = y + height();
+	/*const auto bottom = y + height();
 	y += marginTop();
 	p.fillRect(
 		0,
@@ -789,7 +805,7 @@ void UnreadBar::paint(
 		bottom - st::lineWidth,
 		w,
 		st::lineWidth,
-		st->historyUnreadBarBorder());
+		st->historyUnreadBarBorder());*/
 	p.setFont(st::historyUnreadBarFont);
 	p.setPen(st->historyUnreadBarFg());
 
@@ -803,13 +819,31 @@ void UnreadBar::paint(
 	}
 	w = maxwidth;
 
-	const auto skip = st::historyUnreadBarHeight
-		- 2 * st::lineWidth
-		- st::historyUnreadBarFont->height;
-	p.drawText(
-		(w - width) / 2,
-		y + (skip / 2) + st::historyUnreadBarFont->ascent,
-		text);
+	{
+		auto hq = PainterHighQualityEnabler(p);
+
+		// `width` - width of the text
+		const auto pillWidth = width + 2 * st::unreadPillPadding;
+		const auto pillHeight = height() - marginTop();
+		const auto pillX = (w - pillWidth) / 2;
+		const auto pillY = y + marginTop();
+
+		QPainterPath path;
+		path.addRoundedRect(pillX,
+							pillY,
+							pillWidth,
+							pillHeight,
+							static_cast<double>(pillHeight) / 2,
+							static_cast<double>(pillHeight) / 2);
+		p.fillPath(path, st->historyUnreadBarBg());
+
+		const auto textY = pillY
+			+ (pillHeight - st::historyUnreadBarFont->height) / 2
+			+ st::historyUnreadBarFont->ascent;
+
+		p.drawText((w - width) / 2, textY, text);
+	}
+
 	if (previousTranslation != 0) {
 		p.translate(previousTranslation, 0);
 	}
@@ -1267,6 +1301,24 @@ Element::Element(
 			AddComponents(FakeBotAboutTop::Bit());
 		}
 	}
+	const auto deletedOpacityEnabled
+		= AyuSettings::getInstance().semiTransparentDeletedMessages();
+	if (deletedOpacityEnabled
+		&& replacing
+		&& replacing->_deletedOpacityAnimation.animating()) {
+		_deletedOpacityAnimation = replacing->takeDeletedAnimation();
+		_deletedOpacityAnimationTarget
+			= replacing->_deletedOpacityAnimationTarget;
+		refreshDeletedAnimationTarget();
+	} else if (deletedOpacityEnabled
+		&& data->isDeleted()
+		&& data->wasDeletedAnimated()) {
+		// grouped messages handle it per-item
+		if (!history()->owner().groups().find(data)) {
+			startDeletedAnimation();
+			data->markDeletedAnimated();
+		}
+	}
 	refreshEphemeralBadge();
 }
 
@@ -1372,6 +1424,15 @@ void Element::hideSpoilers() {
 	}
 }
 
+void Element::revealSpoilers() {
+	if (_text.hasSpoilers()) {
+		_text.setSpoilerRevealed(true, anim::type::instant);
+	}
+	if (_media) {
+		_media->revealSpoilers();
+	}
+}
+
 void Element::customEmojiRepaint() {
 	if (!(_flags & Flag::CustomEmojiRepainting)) {
 		_flags |= Flag::CustomEmojiRepainting;
@@ -1416,6 +1477,69 @@ void Element::prepareCustomEmojiPaint(
 
 void Element::repaint(QRect r) const {
 	history()->owner().requestViewRepaint(this, r);
+}
+
+void Element::refreshDeletedAnimationTarget() {
+	if (!_deletedOpacityAnimationTarget) {
+		_deletedOpacityAnimationTarget
+			= std::make_shared<base::weak_ptr<Element>>();
+	}
+	*_deletedOpacityAnimationTarget = base::make_weak(this);
+}
+
+float64 Element::deletedOpacity() const {
+	const auto &settings = AyuSettings::getInstance();
+	if (!settings.semiTransparentDeletedMessages()) {
+		_deletedOpacityAnimation.stop();
+		_deletedOpacityAnimationTarget = nullptr;
+		return 1.;
+	}
+	if (_context == Context::AdminLog) { // render normally in "View Deleted"
+		return 1.;
+	}
+	if (_data->isDeleted()) {
+		if (const auto group = history()->owner().groups().find(_data)) {
+			// animation works weirdly on grouped messages, so only a fixed opacity here
+			const auto allDeleted = ranges::all_of(
+				group->items,
+				&HistoryItem::isDeleted);
+			return allDeleted ? 0.7 : 1.;
+		}
+		const auto opacity = _deletedOpacityAnimation.value(0.7);
+		if (!_deletedOpacityAnimation.animating()) {
+			_deletedOpacityAnimationTarget = nullptr;
+		}
+		return opacity;
+	}
+	return 1.;
+}
+
+void Element::startDeletedAnimation() {
+	if (!AyuSettings::getInstance().semiTransparentDeletedMessages()) {
+		_deletedOpacityAnimation.stop();
+		_deletedOpacityAnimationTarget = nullptr;
+		return;
+	}
+	refreshDeletedAnimationTarget();
+	_deletedOpacityAnimation.start(
+		[target = _deletedOpacityAnimationTarget] {
+			if (!AyuSettings::getInstance().semiTransparentDeletedMessages()) {
+				return false;
+			}
+			if (const auto view = target->get()) {
+				view->repaint();
+				return true;
+			}
+			return false;
+		},
+		1.,
+		0.7,
+		500,
+		anim::easeOutCubic);
+}
+
+Ui::Animations::Simple Element::takeDeletedAnimation() {
+	return std::move(_deletedOpacityAnimation);
 }
 
 void Element::paintHighlight(
@@ -1510,6 +1634,9 @@ int Element::skipBlockWidth() const {
 	if (hidesBottomInfo()) {
 		return 0;
 	}
+	if (AyuFeatures::MessageShot::ignoreRender(AyuFeatures::MessageShot::RenderPart::Date)) {
+		return st::msgDateDelta.x();
+	}
 	return st::msgDateSpace + infoWidth() - st::msgDateDelta.x();
 }
 
@@ -1537,7 +1664,7 @@ bool Element::isHiddenByGroup() const {
 }
 
 bool Element::isHidden() const {
-	return isHiddenByGroup();
+	return isMessageHidden(data()) || isHiddenByGroup();
 }
 
 void Element::overrideMedia(std::unique_ptr<Media> media) {
@@ -1567,6 +1694,7 @@ void Element::overrideRightBadge(const QString &text, BadgeRole role) {
 	const auto badge = Get<RightBadge>();
 	badge->overridden = true;
 	badge->role = role;
+	badge->channel = false;
 	badge->tag.setMarkedText(
 		st::defaultTextStyle,
 		{ text },
@@ -2414,6 +2542,10 @@ void Element::destroyUnreadBar() {
 }
 
 int Element::displayedDateHeight() const {
+	if (AyuFeatures::MessageShot::isTakingShot() || isMessageHidden(data())) {
+		return 0;
+	}
+
 	if (auto date = Get<DateBadge>()) {
 		return date->height();
 	}
@@ -2911,6 +3043,7 @@ void Element::refreshReactions() {
 					if (id.paid() || ranges::contains(chosen, id)) {
 						now->animateReaction({
 							.id = id,
+							.haptic = true,
 						});
 					}
 				}
@@ -3075,10 +3208,10 @@ Element *Element::previousInBlocks() const {
 
 Element *Element::previousDisplayedInBlocks() const {
 	auto result = previousInBlocks();
-	while (result && (result->data()->isEmpty() || result->isHidden())) {
+	while (result && ((result->data()->isEmpty() || result->isHidden()) && !isMessageHidden(data()))) {
 		result = result->previousInBlocks();
 	}
-	return result;
+	return result == this ? nullptr : result;
 }
 
 Element *Element::nextInBlocks() const {
@@ -3096,10 +3229,10 @@ Element *Element::nextInBlocks() const {
 
 Element *Element::nextDisplayedInBlocks() const {
 	auto result = nextInBlocks();
-	while (result && (result->data()->isEmpty() || result->isHidden())) {
+	while (result && ((result->data()->isEmpty() || result->isHidden()) && !isMessageHidden(data()))) {
 		result = result->nextInBlocks();
 	}
-	return result;
+	return result == this ? nullptr : result;
 }
 
 void Element::drawInfo(
