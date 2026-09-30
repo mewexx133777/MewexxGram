@@ -1,0 +1,140 @@
+name: Build MewexxGram (Windows x64)
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - mewexxgram
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build Type (Release or Debug)'
+        required: true
+        default: 'Release'
+        type: choice
+        options:
+          - Release
+          - Debug
+
+jobs:
+  build:
+    name: Build MewexxGram Windows x64
+    runs-on: windows-latest
+
+    env:
+      TBUILD: "${{ github.workspace }}\\TBuild"
+      REPO_NAME: "MewexxGram"
+      LibrariesPath: "${{ github.workspace }}\\TBuild\\Libraries\\win64"
+      BUILD_TYPE: "${{ github.event.inputs.build_type || 'Release' }}"
+
+    defaults:
+      run:
+        shell: cmd
+
+    steps:
+      - name: Prepare build directory
+        run: |
+          mkdir "%userprofile%\TBuild\Libraries"
+          mklink /d "%GITHUB_WORKSPACE%\TBuild" "%userprofile%\TBuild"
+
+      - name: Checkout MewexxGram repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          path: TBuild/MewexxGram
+
+      - name: Setup Visual Studio MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+          sdk: "10.0.26100.0"
+          toolset: "14.44"
+
+      - name: Cache ThirdParty
+        id: cache-third-party
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.TBUILD }}\ThirdParty
+          key: ${{ runner.OS }}-x64-third-party-${{ hashFiles('TBuild/MewexxGram/Telegram/build/prepare/prepare.py') }}
+          restore-keys: |
+            ${{ runner.OS }}-x64-third-party-
+
+      - name: Cache Libraries
+        id: cache-libs
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.LibrariesPath }}\*
+            !${{ env.LibrariesPath }}\cache_keys
+            !${{ env.LibrariesPath }}\[qQ]t[_-]*
+            ${{ env.LibrariesPath }}\cache_keys\*
+            !${{ env.LibrariesPath }}\cache_keys\[qQ]t[_-]*
+          key: ${{ runner.OS }}-x64-libs-v2-${{ hashFiles('TBuild/MewexxGram/Telegram/build/prepare/prepare.py') }}
+          restore-keys: |
+            ${{ runner.OS }}-x64-libs-v2-
+
+      - name: Cache Qt6
+        id: cache-qt
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.LibrariesPath }}\[qQ]t[_-]*
+            ${{ env.LibrariesPath }}\cache_keys\[qQ]t[_-]*
+          key: ${{ runner.OS }}-x64-qt6-${{ hashFiles('TBuild/MewexxGram/Telegram/build/prepare/prepare.py') }}
+          restore-keys: |
+            ${{ runner.OS }}-x64-qt6-
+
+      - name: Build ThirdParty and Libraries
+        run: |
+          %TBUILD%\MewexxGram\Telegram\build\prepare\win.bat silent qt6
+
+      - name: Free unused temporary library space
+        shell: bash
+        run: |
+          find "$LibrariesPath" '(' '(' ! '(' -name '*.lib' -o -name '*.a' -o -name '*.exe' -o -name '*.h' -o -name '*.hpp' -o -name '*.inc' -o -name '*.cmake' -o -name '*.pc' -o -path '*/include/*' -o -path '*/objects-*' -o -path '*/cache_keys/*' -o -path '*/patches/*' -o -path '*/nv-codec-headers/*' ')' -type f ')' -o -empty ')' -delete || true
+
+      - name: Configure CMake
+        run: |
+          cd %TBUILD%\MewexxGram\Telegram
+          call configure.bat x64 qt6 ^
+            -D TDESKTOP_API_ID=2040 ^
+            -D TDESKTOP_API_HASH=b18441a1ff607e10a989891a5462e627 ^
+            -D CMAKE_CONFIGURATION_TYPES=%BUILD_TYPE% ^
+            -D DESKTOP_APP_DISABLE_AUTOUPDATE=OFF ^
+            -D DESKTOP_APP_DISABLE_CRASH_REPORTS=OFF
+
+      - name: Build MewexxGram.exe
+        run: |
+          cd %TBUILD%\MewexxGram
+          cmake --build out --config %BUILD_TYPE% --parallel
+
+      - name: Package Artifacts
+        shell: pwsh
+        run: |
+          $buildDir = "${{ env.TBUILD }}\\MewexxGram\\out\\${{ env.BUILD_TYPE }}"
+          New-Item -ItemType Directory -Path "dist" -Force
+          Copy-Item "$buildDir\\MewexxGram.exe" -Destination "dist\\MewexxGram.exe"
+          if (Test-Path "$buildDir\\Updater.exe") {
+            Copy-Item "$buildDir\\Updater.exe" -Destination "dist\\Updater.exe"
+          }
+          Compress-Archive -Path "dist\\*" -DestinationPath "dist\\MewexxGram-v7.2.9-Windows-x64.zip"
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: MewexxGram-v7.2.9-Windows-x64
+          path: dist/*
+          retention-days: 30
+
+      - name: Create Release (on tag)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/MewexxGram.exe
+            dist/MewexxGram-v7.2.9-Windows-x64.zip
+          draft: false
+          prerelease: false
