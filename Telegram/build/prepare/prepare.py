@@ -1672,6 +1672,7 @@ release:
 win_asserts:
     SET ASSERTS=-force-asserts
 win:
+    powershell -Command "Get-ChildItem -Path '%LIBS_DIR%' -Recurse -Include *.obj,*.pch | Where-Object { $_.FullName -notlike '*Qt*' -and $_.FullName -notlike '*cache_keys*' } | Remove-Item -Force -ErrorAction SilentlyContinue"
     """ + removeDir('"%LIBS_DIR%\\Qt' + qt + '"') + """
     SET MOZJPEG_DIR=%LIBS_DIR%\\mozjpeg
     SET OPENSSL_DIR=%LIBS_DIR%\\openssl3
@@ -1721,6 +1722,7 @@ win:
 
     cmake --build . --config Debug
     cmake --install . --config Debug
+    powershell -Command "Get-ChildItem -Path . -Recurse -Include *.obj,*.pch | Where-Object { $_.DirectoryName -like '*Debug*' } | Remove-Item -Force -ErrorAction SilentlyContinue"
     cmake --build .
     cmake --install .
 """)

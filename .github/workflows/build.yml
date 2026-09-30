@@ -35,6 +35,38 @@ jobs:
         shell: cmd
 
     steps:
+      - name: Free up runner disk space
+        shell: pwsh
+        run: |
+          Write-Host "Free disk space before cleanup:"
+          Get-PSDrive -PSProvider FileSystem | Select-Object Name, @{Name="FreeGB";Expression={[math]::round($_.Free/1GB,2)}}
+
+          $cleanPaths = @(
+            "C:\Program Files (x86)\Android",
+            "C:\Android",
+            "C:\SeleniumWebDrivers",
+            "C:\ProgramData\chocolatey",
+            "C:\hostedtoolcache\windows\Java*",
+            "C:\hostedtoolcache\windows\Ruby",
+            "C:\hostedtoolcache\windows\go",
+            "C:\hostedtoolcache\windows\PyPy",
+            "C:\hostedtoolcache\windows\julia",
+            "C:\Program Files\dotnet\shared\Microsoft.NETCore.App\3.*",
+            "C:\Program Files\dotnet\shared\Microsoft.NETCore.App\5.*",
+            "C:\Program Files\dotnet\shared\Microsoft.NETCore.App\6.*",
+            "C:\Program Files\dotnet\shared\Microsoft.NETCore.App\7.*"
+          )
+          foreach ($p in $cleanPaths) {
+            Get-Item $p -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+          }
+
+          if (Get-Command docker -ErrorAction SilentlyContinue) {
+            docker system prune -a --volumes -f | Out-Null
+          }
+
+          Write-Host "Free disk space after cleanup:"
+          Get-PSDrive -PSProvider FileSystem | Select-Object Name, @{Name="FreeGB";Expression={[math]::round($_.Free/1GB,2)}}
+
       - name: Prepare build directory
         run: |
           mkdir "%userprofile%\TBuild\Libraries"
