@@ -69,8 +69,8 @@ jobs:
 
       - name: Prepare build directory
         run: |
-          mkdir "%userprofile%\TBuild\Libraries"
-          mklink /d "%GITHUB_WORKSPACE%\TBuild" "%userprofile%\TBuild"
+          mkdir "%GITHUB_WORKSPACE%\TBuild\Libraries"
+          mkdir "%GITHUB_WORKSPACE%\TBuild\ThirdParty"
 
       - name: Checkout MewexxGram repository
         uses: actions/checkout@v4
