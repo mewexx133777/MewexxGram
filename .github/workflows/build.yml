@@ -78,6 +78,14 @@ jobs:
           submodules: recursive
           path: TBuild/MewexxGram
 
+      - name: Apply Submodule Patches
+        run: |
+          Set-Location "${{ env.TBUILD }}\MewexxGram"
+          if (Test-Path "patches\lib_ui.patch") {
+            $patchPath = (Resolve-Path "patches\lib_ui.patch").Path
+            git -C Telegram/lib_ui apply "$patchPath"
+          }
+
       - name: Git configuration
         run: |
           git config --global user.email "builder@mewexxgram.local"

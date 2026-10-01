@@ -1,0 +1,60 @@
+diff --git a/ui/text/text.cpp b/ui/text/text.cpp
+index 3234d9a..7c22489 100644
+--- a/ui/text/text.cpp
++++ b/ui/text/text.cpp
+@@ -2288,6 +2288,39 @@ bool IsWordSeparator(QChar ch) {
+ 	return false;
+ }
+ 
++template <typename At>
++[[nodiscard]] bool IsWordSeparatorWith(At &&at, int length, int position) {
++	if (position < 0 || position >= length) {
++		return true;
++	}
++	const auto ch = at(position);
++	const auto unicode = ch.unicode();
++	const auto apostrophe = (unicode == '\'')
++		|| (unicode == 0x2018) // left single quotation mark
++		|| (unicode == 0x2019); // right single quotation mark
++	if (!apostrophe) {
++		return IsWordSeparator(ch);
++	}
++
++	const auto edge = [&](int index) {
++		return (index < 0)
++			|| (index >= length)
++			|| IsWordSeparator(at(index));
++	};
++	return edge(position - 1) || edge(position + 1);
++}
++
++bool IsWordSeparator(const QString &text, int position) {
++	return IsWordSeparatorWith(
++		[&](int index) { return text.at(index); },
++		int(text.size()),
++		position);
++}
++
++bool IsWordSeparator(Fn<QChar(int)> at, int length, int position) {
++	return IsWordSeparatorWith(at, length, position);
++}
++
+ bool IsAlmostLinkEnd(QChar ch) {
+ 	switch (ch.unicode()) {
+ 	case '?':
+diff --git a/ui/text/text.h b/ui/text/text.h
+index 4749737..051ab3a 100644
+--- a/ui/text/text.h
++++ b/ui/text/text.h
+@@ -570,6 +570,11 @@ private:
+ 
+ [[nodiscard]] bool IsBad(QChar ch);
+ [[nodiscard]] bool IsWordSeparator(QChar ch);
++[[nodiscard]] bool IsWordSeparator(const QString &text, int position);
++[[nodiscard]] bool IsWordSeparator(
++	Fn<QChar(int)> at,
++	int length,
++	int position);
+ [[nodiscard]] bool IsAlmostLinkEnd(QChar ch);
+ [[nodiscard]] bool IsLinkEnd(QChar ch);
+ [[nodiscard]] bool IsNewline(QChar ch);
