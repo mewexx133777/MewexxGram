@@ -1,60 +1,201 @@
-diff --git a/ui/text/text.cpp b/ui/text/text.cpp
-index 3234d9a..7c22489 100644
---- a/ui/text/text.cpp
-+++ b/ui/text/text.cpp
-@@ -2288,6 +2288,39 @@ bool IsWordSeparator(QChar ch) {
- 	return false;
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 930ea8f..97a006a 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -36,6 +36,9 @@ PRIVATE
+     fonts/fonts.qrc
+     qt_conf/win.qrc
+ 
++    ayu/ayu_ui_settings.cpp
++    ayu/ayu_ui_settings.h
++
+     ui/accessible/ui_accessible_factory.cpp
+     ui/accessible/ui_accessible_factory.h
+     ui/accessible/ui_accessible_item.cpp
+diff --git a/ayu/ayu_ui_settings.cpp b/ayu/ayu_ui_settings.cpp
+new file mode 100644
+index 0000000..b697444
+--- /dev/null
++++ b/ayu/ayu_ui_settings.cpp
+@@ -0,0 +1,60 @@
++// This is the source code of AyuGram for Desktop.
++//
++// We do not and cannot prevent the use of our code,
++// but be respectful and credit the original author.
++//
++// Copyright @Radolyn, 2026
++#include "ayu/ayu_ui_settings.h"
++
++#include <utility>
++#include <cmath>
++#include <algorithm>
++
++namespace AyuUiSettings {
++
++QString monoFont;
++double wideMultiplier = 1.0;
++bool materialSwitches;
++int avatarCorners = kMaxAvatarCorners;
++
++void setMonoFont(QString newFont) {
++	monoFont = std::move(newFont);
++}
++
++QString getMonoFont() {
++	return monoFont;
++}
++
++void setWideMultiplier(double val) {
++	wideMultiplier = val;
++}
++
++bool isWideMultiplied() {
++	return std::abs(wideMultiplier - 1.0) > 0.01;
++}
++
++int getWideMultiplied(int width, double mult) {
++	if (!isWideMultiplied()) {
++		return width;
++	}
++	const auto res = width * (wideMultiplier * mult);
++	return std::max(width, static_cast<int>(std::round(res)));
++}
++
++void setMaterialSwitches(bool val) {
++	materialSwitches = val;
++}
++
++bool isMaterialSwitches() {
++	return materialSwitches;
++}
++
++void setAvatarCorners(int val) {
++	avatarCorners = val;
++}
++
++int getAvatarCorners() {
++	return avatarCorners;
++}
++
++}
+diff --git a/ayu/ayu_ui_settings.h b/ayu/ayu_ui_settings.h
+new file mode 100644
+index 0000000..6026dde
+--- /dev/null
++++ b/ayu/ayu_ui_settings.h
+@@ -0,0 +1,29 @@
++// This is the source code of AyuGram for Desktop.
++//
++// We do not and cannot prevent the use of our code,
++// but be respectful and credit the original author.
++//
++// Copyright @Radolyn, 2026
++#pragma once
++
++#include <QtCore/QString>
++
++namespace AyuUiSettings {
++
++inline constexpr int kMaxAvatarCorners = 23;
++
++void setMonoFont(QString newFont);
++QString getMonoFont();
++
++void setWideMultiplier(double val);
++
++bool isWideMultiplied();
++int getWideMultiplied(int width, double mult);
++
++void setMaterialSwitches(bool val);
++bool isMaterialSwitches();
++
++void setAvatarCorners(int val);
++int getAvatarCorners();
++
++}
+diff --git a/ui/image/image_prepare.cpp b/ui/image/image_prepare.cpp
+index d4ba998..4cb655a 100644
+--- a/ui/image/image_prepare.cpp
++++ b/ui/image/image_prepare.cpp
+@@ -15,6 +15,7 @@
+ #include "base/bytes.h"
+ #include "styles/palette.h"
+ #include "styles/style_basic.h"
++#include "ayu/ayu_ui_settings.h"
+ 
+ #include <zlib.h>
+ #include <QtCore/QFile>
+@@ -542,7 +543,8 @@ ReadResult Read(ReadArgs &&args) {
+ 		? Option::RoundLarge
+ 		: (radius == ImageRoundRadius::Small)
+ 		? Option::RoundSmall
+-		: (radius == ImageRoundRadius::Ellipse)
++		: (radius == ImageRoundRadius::Ellipse
++			|| radius == ImageRoundRadius::AyuUserpic)
+ 		? Option::RoundCircle
+ 		: Option::None);
  }
+@@ -1144,6 +1146,19 @@ QImage Round(
+ 		QRect target) {
+ 	if (!static_cast<int>(corners)) {
+ 		return std::move(image);
++	} else if (radius == ImageRoundRadius::AyuUserpic) {
++		const auto corners_val = AyuUiSettings::getAvatarCorners();
++		if (corners_val >= AyuUiSettings::kMaxAvatarCorners) {
++			return Circle(std::move(image), target);
++		} else if (corners_val <= 0) {
++			return std::move(image);
++		}
++		const auto size = target.isEmpty()
++			? std::min(image.width(), image.height())
++			: std::min(target.width(), target.height());
++		const auto r = int(double(corners_val) / AyuUiSettings::kMaxAvatarCorners * size / 2.0)
++			/ style::DevicePixelRatio();
++		return Round(std::move(image), CornersMask(r), corners, target);
+ 	} else if (radius == ImageRoundRadius::Ellipse) {
+ 		Assert((corners & RectPart::AllCorners) == RectPart::AllCorners);
+ 		return Circle(std::move(image), target);
+diff --git a/ui/image/image_prepare.h b/ui/image/image_prepare.h
+index 23555c3..f3db34c 100644
+--- a/ui/image/image_prepare.h
++++ b/ui/image/image_prepare.h
+@@ -21,6 +21,7 @@ enum class ImageRoundRadius {
+ 	Large,
+ 	Small,
+ 	Ellipse,
++	AyuUserpic,
+ };
  
-+template <typename At>
-+[[nodiscard]] bool IsWordSeparatorWith(At &&at, int length, int position) {
-+	if (position < 0 || position >= length) {
-+		return true;
-+	}
-+	const auto ch = at(position);
-+	const auto unicode = ch.unicode();
-+	const auto apostrophe = (unicode == '\'')
-+		|| (unicode == 0x2018) // left single quotation mark
-+		|| (unicode == 0x2019); // right single quotation mark
-+	if (!apostrophe) {
-+		return IsWordSeparator(ch);
-+	}
-+
-+	const auto edge = [&](int index) {
-+		return (index < 0)
-+			|| (index >= length)
-+			|| IsWordSeparator(at(index));
-+	};
-+	return edge(position - 1) || edge(position + 1);
-+}
-+
-+bool IsWordSeparator(const QString &text, int position) {
-+	return IsWordSeparatorWith(
-+		[&](int index) { return text.at(index); },
-+		int(text.size()),
-+		position);
-+}
-+
-+bool IsWordSeparator(Fn<QChar(int)> at, int length, int position) {
-+	return IsWordSeparatorWith(at, length, position);
-+}
-+
- bool IsAlmostLinkEnd(QChar ch) {
- 	switch (ch.unicode()) {
- 	case '?':
-diff --git a/ui/text/text.h b/ui/text/text.h
-index 4749737..051ab3a 100644
---- a/ui/text/text.h
-+++ b/ui/text/text.h
-@@ -570,6 +570,11 @@ private:
+ namespace Images {
+diff --git a/ui/integration.h b/ui/integration.h
+index 07b8779..00837b3 100644
+--- a/ui/integration.h
++++ b/ui/integration.h
+@@ -52,6 +52,7 @@ public:
+ 	virtual void activationFromTopPanel();
+ 	virtual void touchCounterIncrement() = 0;
+ 	[[nodiscard]] virtual int touchCounterNow() = 0;
++	virtual void preparePopupMenu(not_null<QWidget*> widget) {}
  
- [[nodiscard]] bool IsBad(QChar ch);
- [[nodiscard]] bool IsWordSeparator(QChar ch);
-+[[nodiscard]] bool IsWordSeparator(const QString &text, int position);
-+[[nodiscard]] bool IsWordSeparator(
-+	Fn<QChar(int)> at,
-+	int length,
-+	int position);
- [[nodiscard]] bool IsAlmostLinkEnd(QChar ch);
- [[nodiscard]] bool IsLinkEnd(QChar ch);
- [[nodiscard]] bool IsNewline(QChar ch);
+ 	[[nodiscard]] virtual bool screenIsLocked();
+ 
+diff --git a/ui/widgets/popup_menu.cpp b/ui/widgets/popup_menu.cpp
+index ba3928f..5c7b2dd 100644
+--- a/ui/widgets/popup_menu.cpp
++++ b/ui/widgets/popup_menu.cpp
+@@ -813,6 +813,7 @@ void PopupMenu::showStarted() {
+ 		const auto weak = base::make_weak(this);
+ 		show();
+ 		if (weak) {
++			Integration::Instance().preparePopupMenu(this);
+ 			startShowAnimation();
+ 		}
+ 		return;
+@@ -1143,6 +1144,7 @@ void PopupMenu::showPrepared(TriggeredSource source) {
+ 	if (::Platform::IsWindows()) {
+ 		ForceFullRepaintSync(this);
+ 	}
++	Integration::Instance().preparePopupMenu(this);
+ 	// show() goes all the way into the platform window, deep enough for the
+ 	// owner to destroy this menu from inside it - a QCocoaWindow freed inside
+ 	// its own setVisible() is the reported shape - so nothing below may touch
