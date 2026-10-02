@@ -79,6 +79,7 @@ jobs:
           path: TBuild/MewexxGram
 
       - name: Apply Submodule Patches
+        shell: pwsh
         run: |
           Set-Location "${{ env.TBUILD }}\MewexxGram"
           if (Test-Path "patches\lib_ui.patch") {
